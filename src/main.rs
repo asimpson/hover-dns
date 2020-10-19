@@ -6,9 +6,9 @@ use serde::Deserialize;
 use ureq::json;
 
 #[derive(FromArgs)]
-#[argh(description = "Specify domain to check")]
+#[argh(description = "One required flags: the domain to modify.")]
 struct Args {
-    #[argh(option, short = 's', description = "domain to check")]
+    #[argh(option, short = 's', description = "the domain to modify")]
     domain: String,
 }
 
@@ -32,19 +32,38 @@ struct Entry {
     r#type: String,
 }
 
-fn get_existing_a_record(cookie: &str, domain: &str) -> Result<String> {
-    let url = format!("https://www.hover.com/api/domains/{}/dns", domain);
-    let anet = ureq::get(&url).set("Cookie", cookie).call();
+impl Overview {
+    fn compare(&self, state: &HoverState) {
+        for entry in self.domains[0].entries.iter() {
+            if entry.name == "@" && entry.r#type == "A" && state.ip != entry.content {
+                self.update(&entry.id, state);
+            }
+        }
+    }
 
-    let info = anet.into_json_deserialize::<Overview>()?;
-    let name = &info.domains[0].domain_name;
-    return Ok(name.to_string());
+    fn update(&self, id: &str, state: &HoverState) {
+        let url = format!("https://www.hover.com/api/dns/{}", id);
+        println!("{:?}", url);
+        let put_req = ureq::put(&url)
+            .set("Cookie", &state.cookie)
+            .send_json(json!({ "content": state.ip }));
+
+        println!("{:?}: {:?}", put_req.status(), put_req.into_string());
+    }
+}
+
+#[derive(Debug)]
+struct HoverState {
+    ip: String,
+    cookie: String,
 }
 
 fn main() -> Result<()> {
     let user = env::var("HOVER_USERNAME")?;
     let pass = env::var("HOVER_PASSWORD")?;
     let args: Args = argh::from_env();
+
+    let ip = ureq::get("http://icanhazip.com").call().into_string()?;
 
     let resp = ureq::post("https://www.hover.com/api/login")
         .set("Accept", "application/json")
@@ -59,9 +78,18 @@ fn main() -> Result<()> {
         .split(";")
         .collect();
 
-    let a_record = get_existing_a_record(auth_cookie[0], &args.domain)?;
+    let state = HoverState {
+        ip: ip.trim().to_string(),
+        cookie: auth_cookie[0].to_string(),
+    };
 
-    println!("{:?}", a_record);
+    let url = format!("https://www.hover.com/api/domains/{}/dns", args.domain);
+    let domains: Overview = ureq::get(&url)
+        .set("Cookie", &state.cookie)
+        .call()
+        .into_json_deserialize()?;
+
+    domains.compare(&state);
 
     Ok(())
 }
