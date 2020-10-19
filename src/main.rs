@@ -33,7 +33,7 @@ struct Entry {
 }
 
 impl Overview {
-    fn compare(&self, state: &HoverState) {
+    fn compare(&self, state: &State) {
         for entry in self.domains[0].entries.iter() {
             if entry.name == "@" && entry.r#type == "A" && state.ip != entry.content {
                 self.update(&entry.id, state);
@@ -41,20 +41,29 @@ impl Overview {
         }
     }
 
-    fn update(&self, id: &str, state: &HoverState) {
-        let url = format!("https://www.hover.com/api/dns/{}", id);
-        println!("{:?}", url);
-        let put_req = ureq::put(&url)
+    fn update(&self, id: &str, state: &State) {
+        let put_req = ureq::put("https://www.hover.com/api/control_panel/dns")
             .set("Cookie", &state.cookie)
-            .send_json(json!({ "content": state.ip }));
+            .send_json(json!({
+              "domain": {
+                "dns_records": [{
+                  "id": id,
+                }],
+                "id": format!("domain-{}", state.domain)
+              },
+              "fields": {
+                "content": state.ip
+              }
+            }));
 
-        println!("{:?}: {:?}", put_req.status(), put_req.into_string());
+        println!("{:?}: {:?}", put_req.status(), put_req.into_json());
     }
 }
 
 #[derive(Debug)]
-struct HoverState {
+struct State {
     ip: String,
+    domain: String,
     cookie: String,
 }
 
@@ -78,12 +87,13 @@ fn main() -> Result<()> {
         .split(";")
         .collect();
 
-    let state = HoverState {
+    let state = State {
         ip: ip.trim().to_string(),
+        domain: args.domain,
         cookie: auth_cookie[0].to_string(),
     };
 
-    let url = format!("https://www.hover.com/api/domains/{}/dns", args.domain);
+    let url = format!("https://www.hover.com/api/domains/{}/dns", state.domain);
     let domains: Overview = ureq::get(&url)
         .set("Cookie", &state.cookie)
         .call()
