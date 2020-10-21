@@ -9,10 +9,12 @@ use trust_dns_resolver::Resolver;
 use ureq::{Response, json};
 
 #[derive(FromArgs)]
-#[argh(description = "One required flags: the domain to modify.")]
+#[argh(description = "Set a domain hosted on hover.com to your public IP address.")]
 struct Args {
-    #[argh(option, short = 's', description = "the domain to modify")]
+    #[argh(option, short = 'd', description = "the domain to modify")]
     domain: String,
+    #[argh(option, short = 's', description = "the subdomain to modify", default = "String::from(\"@\")")]
+    subdomain: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -38,7 +40,7 @@ struct Entry {
 impl Overview {
     fn compare(&self, state: &State) {
         for entry in self.domains[0].entries.iter() {
-            if entry.name == "@" && entry.r#type == "A" && state.ip != entry.content {
+            if entry.name == state.subdomain && entry.r#type == "A" && state.ip != entry.content {
                 self.update(&entry.id, state);
             }
         }
@@ -67,6 +69,7 @@ impl Overview {
 struct State {
     ip: String,
     domain: String,
+    subdomain: String,
     cookie: String,
 }
 
@@ -119,6 +122,7 @@ fn main() -> Result<()> {
         ip,
         cookie,
         domain: args.domain,
+        subdomain: args.subdomain,
     };
 
     let url = format!("https://www.hover.com/api/domains/{}/dns", state.domain);
