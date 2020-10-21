@@ -1,19 +1,24 @@
 use std::env;
+use std::net::*;
 
 use anyhow::{anyhow, Result};
 use argh::FromArgs;
 use serde::Deserialize;
-use std::net::*;
 use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
 use trust_dns_resolver::Resolver;
-use ureq::{Response, json};
+use ureq::{json, Response};
 
 #[derive(FromArgs)]
 #[argh(description = "Set a domain hosted on hover.com to your public IP address.")]
 struct Args {
     #[argh(option, short = 'd', description = "the domain to modify")]
     domain: String,
-    #[argh(option, short = 's', description = "the subdomain to modify", default = "String::from(\"@\")")]
+    #[argh(
+        option,
+        short = 's',
+        description = "the subdomain to modify",
+        default = "String::from(\"@\")"
+    )]
     subdomain: String,
 }
 
@@ -93,13 +98,13 @@ fn lookup_ip() -> Result<String> {
 }
 
 fn parse_cookie(response: &Response) -> Result<String> {
-  match response.header("Set-Cookie") {
-    Some(cookie) => {
-      let auth_cookie: Vec<&str> = cookie.split(';').collect();
-      Ok(auth_cookie[0].to_string())
+    match response.header("Set-Cookie") {
+        Some(cookie) => {
+            let auth_cookie: Vec<&str> = cookie.split(';').collect();
+            Ok(auth_cookie[0].to_string())
+        }
+        None => Err(anyhow!("Failed to get cookies from hover.")),
     }
-    None => Err(anyhow!("Failed to get cookies from hover.")),
-  }
 }
 
 fn main() -> Result<()> {
