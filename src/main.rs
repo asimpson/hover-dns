@@ -107,8 +107,6 @@ fn main() -> Result<()> {
     let pass = env::var("HOVER_PASSWORD")?;
     let args: Args = argh::from_env();
 
-    let ip = lookup_ip()?;
-
     let resp = ureq::post("https://www.hover.com/api/login")
         .set("Accept", "application/json")
         .send_json(json!({
@@ -116,11 +114,9 @@ fn main() -> Result<()> {
           "password": pass
         }));
 
-    let cookie = parse_cookie(&resp)?;
-
     let state = State {
-        ip,
-        cookie,
+        ip: lookup_ip()?,
+        cookie: parse_cookie(&resp)?,
         domain: args.domain,
         subdomain: args.subdomain,
     };
