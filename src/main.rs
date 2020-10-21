@@ -1,5 +1,5 @@
 use std::env;
-use std::net::*;
+use std::net::{IpAddr, Ipv4Addr};
 
 use anyhow::{anyhow, Result};
 use argh::FromArgs;
