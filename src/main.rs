@@ -1,8 +1,11 @@
 use std::env;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use argh::FromArgs;
 use serde::Deserialize;
+use std::net::*;
+use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+use trust_dns_resolver::Resolver;
 use ureq::json;
 
 #[derive(FromArgs)]
@@ -67,12 +70,31 @@ struct State {
     cookie: String,
 }
 
+fn lookup_ip() -> Result<String> {
+    let opendns = NameServerConfigGroup::from_ips_clear(
+        &[
+            IpAddr::V4(Ipv4Addr::new(208, 67, 222, 222)),
+            IpAddr::V4(Ipv4Addr::new(208, 67, 220, 220)),
+        ],
+        53,
+    );
+    let resolver_config = ResolverConfig::from_parts(None, vec![], opendns);
+    let resolver = Resolver::new(resolver_config, ResolverOpts::default())?;
+    let resolver_result = resolver.lookup_ip("myip.opendns.com")?;
+    let ipv4 = resolver_result.iter().nth(0);
+
+    match ipv4 {
+        Some(x) => Ok(x.to_string()),
+        None => Err(anyhow!("Public IP lookup failed!")),
+    }
+}
+
 fn main() -> Result<()> {
     let user = env::var("HOVER_USERNAME")?;
     let pass = env::var("HOVER_PASSWORD")?;
     let args: Args = argh::from_env();
 
-    let ip = ureq::get("http://icanhazip.com").call().into_string()?;
+    let ip = lookup_ip()?;
 
     let resp = ureq::post("https://www.hover.com/api/login")
         .set("Accept", "application/json")
