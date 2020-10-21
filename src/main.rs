@@ -81,11 +81,11 @@ fn lookup_ip() -> Result<String> {
     let resolver_config = ResolverConfig::from_parts(None, vec![], opendns);
     let resolver = Resolver::new(resolver_config, ResolverOpts::default())?;
     let resolver_result = resolver.lookup_ip("myip.opendns.com")?;
-    let ipv4 = resolver_result.iter().nth(0);
+    let ipv4 = resolver_result.iter().next();
 
     match ipv4 {
         Some(x) => Ok(x.to_string()),
-        None => Err(anyhow!("Public IP lookup failed!")),
+        None => Err(anyhow!("Public IP lookup failed.")),
     }
 }
 
@@ -106,7 +106,7 @@ fn main() -> Result<()> {
     let auth_cookie: Vec<&str> = resp
         .header("Set-Cookie")
         .expect("Cookie value")
-        .split(";")
+        .split(';')
         .collect();
 
     let state = State {
