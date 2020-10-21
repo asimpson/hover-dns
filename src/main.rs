@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::net::*;
 use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
 use trust_dns_resolver::Resolver;
-use ureq::json;
+use ureq::{Response, json};
 
 #[derive(FromArgs)]
 #[argh(description = "One required flags: the domain to modify.")]
@@ -89,6 +89,16 @@ fn lookup_ip() -> Result<String> {
     }
 }
 
+fn parse_cookie(response: &Response) -> Result<String> {
+  match response.header("Set-Cookie") {
+    Some(cookie) => {
+      let auth_cookie: Vec<&str> = cookie.split(';').collect();
+      Ok(auth_cookie[0].to_string())
+    }
+    None => Err(anyhow!("Failed to get cookies from hover.")),
+  }
+}
+
 fn main() -> Result<()> {
     let user = env::var("HOVER_USERNAME")?;
     let pass = env::var("HOVER_PASSWORD")?;
@@ -103,16 +113,12 @@ fn main() -> Result<()> {
           "password": pass
         }));
 
-    let auth_cookie: Vec<&str> = resp
-        .header("Set-Cookie")
-        .expect("Cookie value")
-        .split(';')
-        .collect();
+    let cookie = parse_cookie(&resp)?;
 
     let state = State {
-        ip: ip.trim().to_string(),
+        ip,
+        cookie,
         domain: args.domain,
-        cookie: auth_cookie[0].to_string(),
     };
 
     let url = format!("https://www.hover.com/api/domains/{}/dns", state.domain);
