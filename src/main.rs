@@ -8,9 +8,35 @@ use trust_dns_resolver::config::{NameServerConfigGroup, ResolverConfig, Resolver
 use trust_dns_resolver::Resolver;
 use ureq::{json, Response};
 
-#[derive(FromArgs)]
-#[argh(description = "Set a domain hosted on hover.com to your public IP address.")]
+#[derive(FromArgs, Debug)]
+#[argh(description = "hover-dns: dynamic dns for hover.com domains")]
 struct Args {
+    #[argh(subcommand)]
+    commands: Commands,
+}
+
+#[derive(FromArgs, Debug)]
+#[argh(subcommand)]
+enum Commands {
+    Update(Update),
+    Ip(Ip),
+}
+
+#[derive(FromArgs, Debug)]
+#[argh(
+    subcommand,
+    description = "Convenience command to return public IP",
+    name = "ip"
+)]
+pub struct Ip {}
+
+#[derive(FromArgs, Debug)]
+#[argh(
+    subcommand,
+    description = "Set a domain hosted on hover.com to your public IP address.",
+    name = "update"
+)]
+pub struct Update {
     #[argh(option, short = 'd', description = "the domain to modify")]
     domain: String,
     #[argh(
@@ -107,23 +133,19 @@ fn parse_cookie(response: &Response) -> Result<String> {
     }
 }
 
-fn main() -> Result<()> {
-    let user = env::var("HOVER_USERNAME")?;
-    let pass = env::var("HOVER_PASSWORD")?;
-    let args: Args = argh::from_env();
-
+fn get_dns(domain: String, subdomain: String) -> Result<()> {
     let resp = ureq::post("https://www.hover.com/api/login")
         .set("Accept", "application/json")
         .send_json(json!({
-          "username": user,
-          "password": pass
+          "username": env::var("HOVER_USERNAME")?,
+          "password": env::var("HOVER_PASSWORD")?
         }));
 
     let state = State {
         ip: lookup_ip()?,
         cookie: parse_cookie(&resp)?,
-        domain: args.domain,
-        subdomain: args.subdomain,
+        domain,
+        subdomain,
     };
 
     let url = format!("https://www.hover.com/api/domains/{}/dns", state.domain);
@@ -133,6 +155,20 @@ fn main() -> Result<()> {
         .into_json_deserialize()?;
 
     domains.compare(&state);
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    let args: Args = argh::from_env();
+
+    match args.commands {
+        Commands::Update(x) => {
+            if let Err(e) = get_dns(x.domain, x.subdomain) {
+                println!("{}", e)
+            }
+        }
+        Commands::Ip(_) => println!("{}", lookup_ip()?),
+    }
 
     Ok(())
 }
